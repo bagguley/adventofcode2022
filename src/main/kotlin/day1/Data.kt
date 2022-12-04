@@ -2252,4 +2252,4 @@ val data = """4601
 6611
 6489
 3794
-6089""".split("\n\n").stream().map { it.split("\n") }.toList()
+6089""".split("\n\n").map{it.split("\n").map{it.toInt()}}.toList()
