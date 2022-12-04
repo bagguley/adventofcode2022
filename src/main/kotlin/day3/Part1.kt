@@ -6,15 +6,15 @@ fun main() {
 
 object Part1 {
     fun calc(input: List<String>): Int {
-        return input.map{it.intersect()}.sumOf{it.sumOf{priority(it)}}
+        return input.map{it.intersect()}.sumOf{priority(it)}
     }
 
     private fun priority(c: Char):Int {
         return if (c.code > 96) (c.code - 96) else c.code - 64 + 26
     }
 
-    private fun String.intersect(): Set<Char> {
-        return this.substring(0,length/2).toSet().intersect(this.substring(length/2).toSet())
+    private fun String.intersect(): Char {
+        return this.substring(0,length/2).toSet().intersect(this.substring(length/2).toSet()).first()
     }
 }
 
