@@ -1,11 +1,11 @@
 package day4
 
 fun main() {
-    println(data.count{
-        val a = it[0][0].toInt()
-        val b = it[0][1].toInt()
-        val c = it[1][0].toInt()
-        val d = it[1][1].toInt()
-        a >= c && b <= d || c >= a && d <= b
-    })
+    println(Part1.calc(data))
+}
+
+object Part1 {
+    fun calc(input: List<List<List<Int>>>): Int {
+        return input.count{it[0][0]>=it[1][0]&&it[0][1]<=it[1][1]||it[1][0]>=it[0][0]&&it[1][1]<=it[0][1]}
+    }
 }

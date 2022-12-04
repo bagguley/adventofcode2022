@@ -999,4 +999,4 @@ val data = """8-82,3-96
 79-86,86-91
 4-86,3-87
 47-92,47-92
-18-32,17-33""".split("\n").map{it.split(",").map{it.split("-")}.toList()}.toList()
+18-32,17-33""".split("\n").map{it.split(",").map{it.split("-").map{it.toInt()}}.toList()}.toList()
