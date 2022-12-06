@@ -2,6 +2,7 @@ package day2
 
 fun main() {
     println(data.sumOf{Part1.score(it)})
+    println(data.sumOf{"483159726"[(it[0].code-65)*3+it[2].code-88].digitToInt()})
 }
 
 object Part1 {
