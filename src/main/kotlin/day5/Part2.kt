@@ -6,12 +6,6 @@ fun main() {
 
 object Part2 {
     fun calc(input: List<MutableList<Char>>, instructions: List<List<Int>>): String {
-        return input.also{instructions.forEach{i->it[i[2]-1].addAll(0,it[i[1]-1].removeFirst(i[0]))}}.map{it.first()}.foldRight(""){c,acc->c+acc}
+        return input.also{instructions.forEach{i->it[i[2]-1].addAll(0,it[i[1]-1].let{x->x.take(i[0]).also{x.subList(0,i[0]).clear()}})}}.map{it.first()}.foldRight(""){c,a->c+a}
     }
-}
-
-private fun <T> MutableList<T>.removeFirst(n: Int): List<T> {
-    val result = this.take(n)
-    this.subList(0, n).clear()
-    return result
 }
