@@ -21,7 +21,7 @@ object Part2 {
         val queue = PriorityQueue<Path> { t1, t2 ->
             (calcScore(t1, prunedGraph) + maxRemaining(t1, prunedGraph)) - (calcScore(t2, prunedGraph) + maxRemaining(t2, prunedGraph))
         }
-        queue.add(Path("AA", 0, emptyMap()))
+        queue.add(Path("AA", "AA", 0, 0, emptyMap()))
         val allPairsCache = mutableMapOf<String, Map<String, Link>>()
 
         while (queue.isNotEmpty()) {
@@ -30,13 +30,27 @@ object Part2 {
             val allPairs = allPairsCache.getOrPut(next.position) { prunedGraph.allPairs(next.position).associateBy { it.to } }
                 .filter { !next.open.containsKey(it.key) }
 
-            if (allPairs.isEmpty()) {
+            val allElephantPairs = allPairsCache.getOrPut(next.elephantPosition) { prunedGraph.allPairs(next.elephantPosition).associateBy { it.to }}
+                .filter { !next.open.containsKey(it.key) }
+
+            if (allPairs.isEmpty() && allElephantPairs.isEmpty()) {
                 result.add(next)
                 maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
             } else {
-                val newNext = allPairs.map { Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1)) }
-                    .filter { it.time <= 30 }
+                val newNext = allPairs.flatMap { myNext ->
+                    val elephantNext = allElephantPairs.filter { it.key != myNext.key }
+                    if (elephantNext.isEmpty() || next.elephantTime > 24) {
+                        listOf(Path(myNext.key, next.elephantPosition, next.time + myNext.value.cost + 1, next.elephantTime + 1, next.open + (myNext.key to next.time + myNext.value.cost + 1)))
+                    } else {
+                        elephantNext.values.map { elephant ->
+                            Path(myNext.key, elephant.to, next.time + myNext.value.cost + 1, next.elephantTime + elephant.cost + 1,
+                                next.open + (myNext.key to next.time + myNext.value.cost + 1) + (elephant.to to next.elephantTime + elephant.cost + 1) )
+                        }
+                    }
+                }
+                    .filter { it.time <= 26 || it.elephantTime <= 26 }
                     .filter { maxScore <= (calcScore(it, prunedGraph) + maxRemaining(it, prunedGraph)) }
+
                 if (newNext.isEmpty()) {
                     result.add(next)
                     maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
@@ -62,7 +76,7 @@ object Part2 {
 
     data class Link(val to: String, val cost: Int)
 
-    data class Path(val position: String, val time: Int, val open: Map<String, Int>)
+    data class Path(val position: String, val elephantPosition: String, val time: Int, val elephantTime: Int, val open: Map<String, Int>)
 
     class Graph<T>(val nodes: List<Node<T>>) {
         private val nodeMap: Map<String, Node<T>> = nodes.associateBy { it.name }
@@ -108,9 +122,9 @@ object Part2 {
         }
     }
 
-    private fun calcScore(open: Map<String, Int>, graph: Graph<Int>): Int = open.entries.sumOf { (30 - it.value) * graph.get(it.key).item }
+    private fun calcScore(open: Map<String, Int>, graph: Graph<Int>): Int = open.entries.sumOf { (26 - it.value) * graph.get(it.key).item }
 
     private fun calcScore(path: Path, graph: Graph<Int>): Int = calcScore(path.open, graph)
 
-    private fun maxRemaining(path: Path, graph: Graph<Int>): Int = (graph.names() - path.open.keys).sumOf { graph.get(it).item * (30 - path.time) }
+    private fun maxRemaining(path: Path, graph: Graph<Int>): Int = (graph.names() - path.open.keys).sumOf { graph.get(it).item * (26 - path.time) }
 }
