@@ -34,14 +34,10 @@ object Part1 {
                 result.add(next)
                 maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
             } else {
-                val newNext = allPairs.map {Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1))}
+                val newNext = allPairs.map { Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1)) }
                     .filter { it.time <= 30 }
                     .filter { maxScore <= (calcScore(it, prunedGraph) + maxRemaining(it, prunedGraph)) }
-                if (newNext.isEmpty()) {
-                    result.add(next)
-                } else {
-                    queue.addAll(newNext)
-                }
+                if (newNext.isEmpty()) result.add(next) else queue.addAll(newNext)
             }
         }
 
