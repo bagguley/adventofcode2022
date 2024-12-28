@@ -9,39 +9,44 @@ fun main() {
 
 object Part1 {
     fun calc(input: List<String>): Int {
-        val valves = load(input).associateBy { it.name }
+        val valves = load(input)
+        val nodes = valves.map { Node(it.name, it.rate, it.leadsTo.map { l -> Link(l, 1) }) }
+        val graph = Graph(nodes)
+
+        val toPrune = graph.nodes.filter { it.item == 0 && it.name != "AA" }.map { it.name }
+        val prunedGraph = graph.pruning(toPrune)
 
         var maxScore = 0
         val result = mutableListOf<Path>()
         val queue = PriorityQueue<Path> { t1, t2 ->
-            (calcScore(t2, valves) + maxRemaining(t2, valves)) - (calcScore(t1, valves) + maxRemaining(t1, valves))
+            (calcScore(t1, prunedGraph) + maxRemaining(t1, prunedGraph)) - (calcScore(t2, prunedGraph) + maxRemaining(t2, prunedGraph))
         }
         queue.add(Path("AA", 0, emptyMap()))
-        val allPairsCache = mutableMapOf<String, Map<String, Int>>()
+        val allPairsCache = mutableMapOf<String, Map<String, Link>>()
 
         while (queue.isNotEmpty()) {
             val next = queue.remove()
 
             if (next.time == 29) {
                 result.add(next)
-                maxScore = maxOf(calcScore(next, valves), maxScore)
+                maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
                 continue
             }
 
-            val allPairs = allPairsCache.getOrPut(next.position) { allPairs(next.position, valves) }
+            val allPairs = allPairsCache.getOrPut(next.position) { prunedGraph.allPairs(next.position).associateBy { it.to } }
                 .filter { !next.open.containsKey(it.key) }
 
             if (allPairs.isEmpty()) {
                 result.add(next)
-                maxScore = maxOf(calcScore(next, valves), maxScore)
+                maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
             } else {
-                val newNext = allPairs.map { Path(it.key, next.time + it.value + 1, next.open + (it.key to next.time + it.value + 1)) }
-                    .filter { maxScore <= (calcScore(it, valves) + maxRemaining(it, valves)) }
+                val newNext = allPairs.map { Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1)) }
+                    .filter { maxScore <= (calcScore(it, prunedGraph) + maxRemaining(it, prunedGraph)) }
                 queue.addAll(newNext)
             }
         }
 
-        return result.maxOf { calcScore(it.open, valves) }
+        return result.maxOf { calcScore(it.open, prunedGraph) }
     }
 
     private fun load(input: List<String>): List<Valve> {
@@ -51,32 +56,61 @@ object Part1 {
         }
     }
 
-    private fun allPairs(startAt: String, valves: Map<String, Valve>): Map<String, Int> {
-        val costs = mutableMapOf<String, Int>()
-        val queue = mutableListOf(startAt to 0)
-
-        while (queue.isNotEmpty()) {
-            val head = queue.removeFirst()
-            val valve = valves[head.first]!!
-            val children = valve.leadsTo
-            val a = children.filter { !costs.containsKey(it) }
-                .mapNotNull { valves[it] }
-                .onEach { costs[it.name] = head.second + 1 }
-                .map { it.name }
-            queue.addAll(a.map { it to head.second + 1})
-        }
-        return costs.filter { valves[it.key]!!.rate > 0 }
-    }
-
-    private fun calcScore(open: Map<String, Int>, valves: Map<String, Valve>): Int = open.entries.sumOf { (30 - it.value) * valves[it.key]!!.rate }
-
-    private fun calcScore(path: Path, valves: Map<String, Valve>): Int = calcScore(path.open, valves)
-
-    private fun maxRemaining(path: Path, valves: Map<String, Valve>): Int {
-        return (valves.keys - path.open.keys).sumOf { valves[it]!!.rate * (30 - path.time) }
-    }
-
     data class Valve(val name: String, val rate: Int, val leadsTo: List<String>)
 
+    data class Node<T>(val name: String, val item: T, val links: List<Link>)
+
+    data class Link(val to: String, val cost: Int)
+
     data class Path(val position: String, val time: Int, val open: Map<String, Int>)
+
+    class Graph<T>(val nodes: List<Node<T>>) {
+        private val nodeMap: Map<String, Node<T>> = nodes.associateBy { it.name }
+
+        fun names(): Set<String> = nodeMap.keys
+
+        fun get(name: String): Node<T> = nodeMap[name]!!
+
+        fun pruning(toPrune: List<String>): Graph<T> {
+            return toPrune.fold(this) { acc, item -> acc.pruning(item) }
+        }
+
+        private fun pruning(toPrune: String): Graph<T> {
+            val newLinks = nodeMap[toPrune]!!.links
+
+            val newNodes = nodeMap.values.filter { it.name != toPrune}.map { node ->
+                if (node.links.any { l -> l.to == toPrune }) {
+                    val prunedLink = node.links.first { it.to == toPrune }
+                    val replacedLinks = node.links.filter { l -> l.to != toPrune } +
+                            newLinks.filter { n -> n.to != node.name}
+                                .map { n -> Link(n.to, n.cost + prunedLink.cost) }
+                    Node(node.name, node.item, replacedLinks)
+                } else node
+            }
+
+            return Graph(newNodes)
+        }
+
+        fun allPairs(from: String): List<Link> {
+            val costs = mutableMapOf<String, Link>()
+            val queue = mutableListOf(Link(from, 0))
+
+            while (queue.isNotEmpty()) {
+                val head = queue.removeFirst()
+                val node = nodeMap[head.to]!!
+                val nextNodes = node.links.filter { l -> !costs.containsKey(l.to) }
+                    .map { l -> Link(l.to, l.cost + head.cost) }
+
+                costs.putAll(nextNodes.associateBy { it.to })
+                queue.addAll(nextNodes)
+            }
+            return costs.values.toList()
+        }
+    }
+
+    private fun calcScore(open: Map<String, Int>, graph: Graph<Int>): Int = open.entries.sumOf { (30 - it.value) * graph.get(it.key).item }
+
+    private fun calcScore(path: Path, graph: Graph<Int>): Int = calcScore(path.open, graph)
+
+    private fun maxRemaining(path: Path, graph: Graph<Int>): Int = (graph.names() - path.open.keys).sumOf { graph.get(it).item * (30 - path.time) }
 }
