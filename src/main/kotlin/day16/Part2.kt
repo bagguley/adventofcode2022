@@ -1,5 +1,7 @@
 package day16
 
+import java.util.*
+
 fun main() {
     println(Part2.calc(testData))
     println(Part2.calc(data))
@@ -14,9 +16,37 @@ object Part2 {
         val toPrune = graph.nodes.filter { it.item == 0 && it.name != "AA" }.map { it.name }
         val prunedGraph = graph.pruning(toPrune)
 
+        var maxScore = 0
+        val result = mutableListOf<Path>()
+        val queue = PriorityQueue<Path> { t1, t2 ->
+            (calcScore(t1, prunedGraph) + maxRemaining(t1, prunedGraph)) - (calcScore(t2, prunedGraph) + maxRemaining(t2, prunedGraph))
+        }
+        queue.add(Path("AA", 0, emptyMap()))
+        val allPairsCache = mutableMapOf<String, Map<String, Link>>()
 
+        while (queue.isNotEmpty()) {
+            val next = queue.remove()
 
-        return -1
+            if (next.time == 29) {
+                result.add(next)
+                maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
+                continue
+            }
+
+            val allPairs = allPairsCache.getOrPut(next.position) { prunedGraph.allPairs(next.position).associateBy { it.to } }
+                .filter { !next.open.containsKey(it.key) }
+
+            if (allPairs.isEmpty()) {
+                result.add(next)
+                maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
+            } else {
+                val newNext = allPairs.map { Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1)) }
+                    .filter { maxScore <= (calcScore(it, prunedGraph) + maxRemaining(it, prunedGraph)) }
+                queue.addAll(newNext)
+            }
+        }
+
+        return result.maxOf { calcScore(it.open, prunedGraph) }
     }
 
     private fun load(input: List<String>): List<Valve> {
@@ -32,8 +62,14 @@ object Part2 {
 
     data class Link(val to: String, val cost: Int)
 
+    data class Path(val position: String, val time: Int, val open: Map<String, Int>)
+
     class Graph<T>(val nodes: List<Node<T>>) {
         private val nodeMap: Map<String, Node<T>> = nodes.associateBy { it.name }
+
+        fun names(): Set<String> = nodeMap.keys
+
+        fun get(name: String): Node<T> = nodeMap[name]!!
 
         fun pruning(toPrune: List<String>): Graph<T> {
             return toPrune.fold(this) { acc, item -> acc.pruning(item) }
@@ -71,4 +107,10 @@ object Part2 {
             return costs.values.toList()
         }
     }
+
+    private fun calcScore(open: Map<String, Int>, graph: Graph<Int>): Int = open.entries.sumOf { (30 - it.value) * graph.get(it.key).item }
+
+    private fun calcScore(path: Path, graph: Graph<Int>): Int = calcScore(path.open, graph)
+
+    private fun maxRemaining(path: Path, graph: Graph<Int>): Int = (graph.names() - path.open.keys).sumOf { graph.get(it).item * (30 - path.time) }
 }
