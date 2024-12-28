@@ -27,12 +27,6 @@ object Part1 {
         while (queue.isNotEmpty()) {
             val next = queue.remove()
 
-            if (next.time == 29) {
-                result.add(next)
-                maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
-                continue
-            }
-
             val allPairs = allPairsCache.getOrPut(next.position) { prunedGraph.allPairs(next.position).associateBy { it.to } }
                 .filter { !next.open.containsKey(it.key) }
 
@@ -40,9 +34,14 @@ object Part1 {
                 result.add(next)
                 maxScore = maxOf(calcScore(next, prunedGraph), maxScore)
             } else {
-                val newNext = allPairs.map { Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1)) }
+                val newNext = allPairs.map {Path(it.key, next.time + it.value.cost + 1, next.open + (it.key to next.time + it.value.cost + 1))}
+                    .filter { it.time <= 30 }
                     .filter { maxScore <= (calcScore(it, prunedGraph) + maxRemaining(it, prunedGraph)) }
-                queue.addAll(newNext)
+                if (newNext.isEmpty()) {
+                    result.add(next)
+                } else {
+                    queue.addAll(newNext)
+                }
             }
         }
 
