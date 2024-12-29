@@ -1,10 +1,13 @@
 package day16
 
 import java.util.PriorityQueue
+import kotlin.math.max
 
 fun main() {
     println(Part1.calc(testData))
     println(Part1.calc(data))
+    println(Part1a.calc(testData))
+    println(Part1a.calc(data))
 }
 
 object Part1 {
@@ -113,4 +116,43 @@ object Part1 {
     private fun calcScore(path: Path, graph: Graph<Int>): Int = calcScore(path.open, graph)
 
     private fun maxRemaining(path: Path, graph: Graph<Int>): Int = (graph.names() - path.open.keys).sumOf { graph.get(it).item * (30 - path.time) }
+}
+
+object Part1a {
+    private val cache = mutableMapOf<Triple<String, Int, Set<String>>, Int>()
+
+    fun calc(input: List<String>): Int {
+        cache.clear()
+        val valves = load(input).associateBy { it.name }
+        return score("AA", 30, emptySet(), valves)
+    }
+
+    private fun score(position: String, time: Int, open: Set<String>, valves: Map<String, Valve>): Int {
+        if (time <= 1) return 0
+
+        val key = Triple(position, time, open)
+        if (cache.containsKey(key)) return cache[key]!!
+
+        val valve = valves[position]!!
+
+        val score = if (valve.rate > 0 && valve.name !in open) {
+            val opened = valve.leadsTo.maxOf { score(it, time - 2, open + valve.name, valves) } + valve.rate * (time - 1)
+            val notOpened = valve.leadsTo.maxOf { score(it, time - 1, open, valves) }
+            max(opened, notOpened)
+        } else {
+            valve.leadsTo.maxOf { score(it, time - 1, open, valves) }
+        }
+
+        cache[key] = score
+        return score
+    }
+
+    private fun load(input: List<String>): List<Valve> {
+        return input.map { line ->
+            val m = "Valve ([A-Z]+) has flow rate=(\\d+); tunnels? leads? to valves? (.*)".toRegex().find(line)!!
+            with(m.groups) { Valve(get(1)!!.value, get(2)!!.value.toInt(), get(3)!!.value.split(", ")) }
+        }
+    }
+
+    data class Valve(val name: String, val rate: Int, val leadsTo: List<String>)
 }
