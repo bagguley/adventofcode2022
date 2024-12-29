@@ -5,6 +5,8 @@ import java.util.*
 fun main() {
     println(Part2.calc(testData))
     println(Part2.calc(data))
+    println(Part2a.calc(testData))
+    println(Part2a.calc(data))
 }
 
 object Part2 {
@@ -127,4 +129,44 @@ object Part2 {
     private fun calcScore(path: Path, graph: Graph<Int>): Int = calcScore(path.open, graph)
 
     private fun maxRemaining(path: Path, graph: Graph<Int>): Int = (graph.names() - path.open.keys).sumOf { graph.get(it).item * (26 - path.time) }
+}
+
+object Part2a {
+    fun calc(input: List<String>): Int {
+        val valves = load(input).associateBy { it.name }
+        val score = score("AA", 26, 2, emptySet(), valves, mutableMapOf())
+        return score.first
+    }
+
+    private fun score(position: String, time: Int, people: Int, open: Set<String>, valves: Map<String, Valve>, cache: MutableMap<Pair<Triple<String, Int, Set<String>>, Int>, Pair<Int, Set<String>>>): Pair<Int, Set<String>> {
+        if (time <= 1 && people == 1) return 0 to open
+        if (time <= 1 && people > 1) {
+            return score("AA", 26, people - 1, open, valves, cache)
+        }
+
+        val key = Triple(position, time, open) to people
+        if (cache.containsKey(key)) return cache[key]!!
+
+        val valve = valves[position]!!
+
+        val score: Pair<Int, Set<String>> = if (valve.rate > 0 && valve.name !in open) {
+            val opened = valve.leadsTo.map { score(it, time - 2, people, open + valve.name, valves, cache) }.maxBy { it.first }.let { it.first + valve.rate * (time - 1) to it.second }
+            val notOpened = valve.leadsTo.map { score(it, time - 1, people, open, valves, cache) }.maxBy { it.first }
+            listOf(opened, notOpened).maxBy { it.first }
+        } else {
+            valve.leadsTo.map { score(it, time - 1, people, open, valves, cache) }.maxBy { it.first }
+        }
+
+        cache[key] = score
+        return score
+    }
+
+    private fun load(input: List<String>): List<Valve> {
+        return input.map { line ->
+            val m = "Valve ([A-Z]+) has flow rate=(\\d+); tunnels? leads? to valves? (.*)".toRegex().find(line)!!
+            with(m.groups) { Valve(get(1)!!.value, get(2)!!.value.toInt(), get(3)!!.value.split(", ")) }
+        }
+    }
+
+    data class Valve(val name: String, val rate: Int, val leadsTo: List<String>)
 }
