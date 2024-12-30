@@ -1,5 +1,6 @@
 package day16
 
+import java.io.Serializable
 import java.util.*
 
 fun main() {
@@ -133,28 +134,38 @@ object Part2 {
 
 object Part2a {
     fun calc(input: List<String>): Int {
-        val valves = load(input).associateBy { it.name }
-        val score = score("AA", 26, 2, emptySet(), valves, mutableMapOf())
+        val valves = load(input)
+        val nodes = valves.map { Node(it.name, it.rate, it.leadsTo.map { l -> Link(l, 1) }) }
+        val graph = Graph(nodes)
+
+        val toPrune = graph.nodes.filter { it.item == 0 && it.name != "AA" }.map { it.name }
+        val prunedGraph = graph.pruning(toPrune)
+        val prunedNodes = prunedGraph.nodeMap
+
+        val score = score("AA", 26, 2, setOf("AA"), prunedNodes, mutableMapOf())
         return score.first
     }
 
-    private fun score(position: String, time: Int, people: Int, open: Set<String>, valves: Map<String, Valve>, cache: MutableMap<Pair<Triple<String, Int, Set<String>>, Int>, Pair<Int, Set<String>>>): Pair<Int, Set<String>> {
+    private fun score(position: String, time: Int, people: Int, open: Set<String>, nodes: Map<String, Node<Int>>,
+                      cache: MutableMap<Quad<String, Int, Set<String>, Int>, Pair<Int, Set<String>>>): Pair<Int, Set<String>> {
         if (time <= 1 && people == 1) return 0 to open
-        if (time <= 1 && people > 1) {
-            return score("AA", 26, people - 1, open, valves, cache)
-        }
 
-        val key = Triple(position, time, open) to people
+        val key = Quad(position, time, open, people)
         if (cache.containsKey(key)) return cache[key]!!
 
-        val valve = valves[position]!!
+        if (time <= 1 && people > 1) {
+            return score("AA", 26, people - 1, open, nodes, cache)
+        }
 
-        val score: Pair<Int, Set<String>> = if (valve.rate > 0 && valve.name !in open) {
-            val opened = valve.leadsTo.map { score(it, time - 2, people, open + valve.name, valves, cache) }.maxBy { it.first }.let { it.first + valve.rate * (time - 1) to it.second }
-            val notOpened = valve.leadsTo.map { score(it, time - 1, people, open, valves, cache) }.maxBy { it.first }
+        val node = nodes[position]!!
+
+        val score: Pair<Int, Set<String>> = if (node.name !in open) {
+            val opened = node.links.map { link -> score(link.to, time - link.cost - 1, people, open + node.name, nodes, cache) }
+                .maxBy { it.first }.let { it.first + node.item * (time - 1) to it.second }
+            val notOpened = node.links.map { link -> score(link.to, time - link.cost, people, open, nodes, cache) }.maxBy { it.first }
             listOf(opened, notOpened).maxBy { it.first }
         } else {
-            valve.leadsTo.map { score(it, time - 1, people, open, valves, cache) }.maxBy { it.first }
+            node.links.map { link -> score(link.to, time - link.cost, people, open, nodes, cache) }.maxBy { it.first }
         }
 
         cache[key] = score
@@ -169,4 +180,47 @@ object Part2a {
     }
 
     data class Valve(val name: String, val rate: Int, val leadsTo: List<String>)
+
+    data class Node<T>(val name: String, val item: T, val links: List<Link>)
+
+    data class Link(val to: String, val cost: Int)
+
+    data class Quad<out A, out B, out C, out D>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D,
+    ) : Serializable {
+
+        /**
+         * Returns string representation of the [Triple] including its [first], [second] and [third] values.
+         */
+        override fun toString(): String = "($first, $second, $third, $fourth)"
+    }
+
+    class Graph<T>(val nodes: List<Node<T>>) {
+        val nodeMap: Map<String, Node<T>> = nodes.associateBy { it.name }
+
+        fun get(name: String): Node<T> = nodeMap[name]!!
+
+        fun pruning(toPrune: List<String>): Graph<T> {
+            return toPrune.fold(this) { acc, item -> acc.pruning(item) }
+        }
+
+        private fun pruning(toPrune: String): Graph<T> {
+            val newLinks = nodeMap[toPrune]!!.links
+
+            val newNodes = nodeMap.values.filter { it.name != toPrune}.map { node ->
+                if (node.links.any { l -> l.to == toPrune }) {
+                    val prunedLink = node.links.first { it.to == toPrune }
+                    val replacedLinks = node.links.filter { l -> l.to != toPrune } +
+                            newLinks.filter { n -> n.to != node.name}
+                                .map { n -> Link(n.to, n.cost + prunedLink.cost) }
+                    Node(node.name, node.item, replacedLinks)
+                } else node
+            }
+
+            return Graph(newNodes)
+        }
+    }
 }
